@@ -1,0 +1,1239 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>批量 Logo 水印工具 (Pro)</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --text-main: #0f172a;
+      --text-sub: #64748b;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      --radius: 12px;
+      --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; outline-color: var(--primary); }
+    
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text-main);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* 布局容器 */
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 32px 20px;
+    }
+
+    /* 头部 */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+    }
+    .header h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin: 0;
+      letter-spacing: -0.025em;
+    }
+    .header p {
+      margin: 4px 0 0;
+      color: var(--text-sub);
+      font-size: 14px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 12px;
+      background: #dbeafe;
+      color: #1e40af;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      background: #2563eb;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+
+    /* 主网格布局 */
+    .grid-layout {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 1024px) {
+      .grid-layout { grid-template-columns: 1fr; }
+    }
+
+    /* 卡片通用样式 */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+    }
+    
+    /* 上传区域 */
+    .upload-box {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 32px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #fdfdfd;
+    }
+    .upload-box:hover {
+      border-color: var(--primary);
+      background: #eff6ff;
+    }
+    .upload-box.has-file {
+      border-style: solid;
+      background: #f0fdf4;
+      border-color: #86efac;
+    }
+    .upload-icon {
+      width: 40px;
+      height: 40px;
+      margin-bottom: 12px;
+      color: var(--text-sub);
+    }
+    .upload-text { font-size: 14px; font-weight: 500; color: var(--text-main); }
+    .upload-hint { font-size: 12px; color: var(--text-sub); margin-top: 4px; }
+    input[type="file"] { display: none; }
+
+    /* Logo 预览区优化 */
+    .preview-container {
+      margin-top: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background-image: 
+        linear-gradient(45deg, #f0f0f0 25%, transparent 25%), 
+        linear-gradient(-45deg, #f0f0f0 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #f0f0f0 75%), 
+        linear-gradient(-45deg, transparent 75%, #f0f0f0 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+      overflow: hidden;
+      height: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .preview-container img {
+      max-width: 90%;
+      max-height: 90%;
+      object-fit: contain;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .preview-placeholder {
+      color: var(--text-sub);
+      font-size: 13px;
+    }
+
+    /* 控制面板 */
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    .control-item {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .control-item.full-width {
+      grid-column: span 2;
+    }
+    .control-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-sub);
+      display: flex;
+      justify-content: space-between;
+    }
+    .control-val { font-weight: 600; color: var(--primary); }
+    
+    input[type="range"] {
+      width: 100%;
+      height: 6px;
+      background: #e2e8f0;
+      border-radius: 3px;
+      appearance: none;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      background: white;
+      border: 2px solid var(--primary);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      transition: transform 0.1s;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.1); }
+    /* 禁用状态 */
+    input[type="range"]:disabled { opacity: 0.5; cursor: not-allowed; }
+    input[type="range"]:disabled::-webkit-slider-thumb { background: #cbd5e1; border-color: #94a3b8; }
+
+    /* 位置选择器样式 */
+    .pos-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+    }
+    .pos-btn {
+      aspect-ratio: 1;
+      padding: 0;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-sub);
+      transition: all 0.1s;
+    }
+    .pos-btn:hover { background: #f8fafc; border-color: #cbd5e1; color: var(--text-main); }
+    .pos-btn.active { background: var(--primary); border-color: var(--primary); color: white; box-shadow: 0 2px 4px rgba(37,99,235,0.2); }
+    .pos-grid.disabled { opacity: 0.5; pointer-events: none; }
+
+    /* 实时预览 (Live Canvas) - 优化版 */
+    .live-preview-wrap {
+      background-color: #f8fafc;
+      background-image: 
+        linear-gradient(45deg, #e2e8f0 25%, transparent 25%), 
+        linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #e2e8f0 75%), 
+        linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+      
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 260px;
+      position: relative;
+    }
+    .live-preview-wrap.manual-mode { cursor: grab; }
+    .live-preview-wrap.manual-mode:active { cursor: grabbing; }
+
+    .live-preview-wrap canvas {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.12); 
+    }
+    .live-preview-empty {
+      color: #64748b;
+      font-size: 14px;
+      text-align: center;
+      line-height: 1.6;
+      background: rgba(255,255,255,0.8);
+      padding: 20px;
+      border-radius: 8px;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+
+    /* 文件列表 (精简版) */
+    .file-stats {
+      font-size: 13px;
+      color: var(--text-sub);
+      background: #f1f5f9;
+      padding: 12px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* 底部操作区 */
+    .action-bar {
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-hover); transform: translateY(-1px); }
+    .btn-outline {
+      background: white;
+      border-color: var(--border);
+      color: var(--text-main);
+    }
+    .btn-outline:hover:not(:disabled) { border-color: #cbd5e1; background: #f8fafc; }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    /* 结果列表 */
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+      margin-top: 32px;
+    }
+    .result-item {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      transition: transform 0.2s;
+    }
+    .result-item:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .result-thumb {
+      aspect-ratio: 1;
+      background: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .result-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .result-info {
+      padding: 8px 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid #f1f5f9;
+    }
+    .download-link {
+      font-size: 12px;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    /* --- 分屏拖拽覆盖层 --- */
+    .split-drag-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex;
+      pointer-events: none; opacity: 0; transition: opacity 0.2s;
+    }
+    .split-drag-overlay.active { opacity: 1; pointer-events: auto; }
+    
+    .drag-zone {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 700;
+      transition: all 0.1s;
+      backdrop-filter: blur(4px);
+      gap: 16px;
+    }
+    
+    .drag-zone.left {
+      background: rgba(240, 253, 244, 0.9);
+      border: 6px dashed #22c55e;
+      color: #15803d;
+      margin-right: 2px;
+      width: 30%; 
+      flex: none;
+    }
+    .drag-zone.left.hover { background: rgba(220, 252, 231, 1); transform: scale(1.005); }
+    
+    .drag-zone.right {
+      background: rgba(239, 246, 255, 0.9);
+      border: 6px dashed #3b82f6;
+      color: #1d4ed8;
+      margin-left: 2px;
+      flex: 1;
+    }
+    .drag-zone.right.hover { background: rgba(219, 234, 254, 1); transform: scale(1.005); }
+    
+    .drag-icon { width: 64px; height: 64px; }
+
+    /* 开关样式 */
+    .toggle-switch {
+      display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;
+    }
+    .toggle-input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: relative; width: 36px; height: 20px; background: #e2e8f0; border-radius: 20px; transition: .3s;
+    }
+    .toggle-slider:before {
+      content: ""; position: absolute; height: 16px; width: 16px; left: 2px; bottom: 2px;
+      background: white; border-radius: 50%; transition: .3s;
+    }
+    .toggle-input:checked + .toggle-slider { background: var(--primary); }
+    .toggle-input:checked + .toggle-slider:before { transform: translateX(16px); }
+
+  </style>
+</head>
+<body>
+
+<!-- 分屏拖拽覆盖层 -->
+<div class="split-drag-overlay" id="splitDragOverlay">
+  <div class="drag-zone left" id="dragZoneLeft">
+    <svg class="drag-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+    <div>松开上传 Logo (左)</div>
+  </div>
+  <div class="drag-zone right" id="dragZoneRight">
+    <svg class="drag-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+    <div>松开上传产品图 (右)</div>
+  </div>
+</div>
+
+<div class="container">
+  
+  <div class="header">
+    <div>
+      <h1>批量图片水印合成</h1>
+      <p>无需上传服务器，所有操作均在浏览器本地完成。</p>
+    </div>
+    <div class="badge">隐私保护：本地处理</div>
+  </div>
+
+  <div class="grid-layout">
+    
+    <!-- 左侧：设置与Logo -->
+    <div style="display:flex; flex-direction:column; gap:24px;">
+      
+      <!-- 1. Logo 上传 -->
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h3 class="card-title">① 选择 Logo</h3>
+          <button class="btn btn-outline" style="padding:4px 10px; font-size:12px; display:none;" id="clearLogoBtn">清除 Logo</button>
+        </div>
+        
+        <div class="upload-box" id="logoDrop">
+          <svg class="upload-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+          <div class="upload-text">点击或拖拽 Logo 到此处</div>
+          <div class="upload-hint">推荐使用透明 PNG 格式</div>
+          <input type="file" id="logoInput" accept="image/*">
+        </div>
+
+        <div class="preview-container">
+          <span class="preview-placeholder" id="logoPlaceholder">Logo 预览区</span>
+          <img id="logoPreview" style="display:none" alt="Logo Preview" />
+        </div>
+      </div>
+
+      <!-- 3. 参数调节 -->
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+             <h3 class="card-title">③ 调整效果</h3>
+             <!-- 手动拖拽开关 -->
+             <label class="toggle-switch" title="开启后可直接在右侧预览图中拖动 Logo">
+                <input type="checkbox" id="manualMode" class="toggle-input">
+                <span class="toggle-slider"></span>
+                <span style="font-size:12px; color:var(--text-main);">手动拖拽位置</span>
+             </label>
+        </div>
+        
+        <div class="controls-grid">
+          <!-- 尺寸 -->
+          <div class="control-item">
+            <div class="control-label">Logo 大小 <span class="control-val" id="valScale">15%</span></div>
+            <input type="range" id="inScale" min="5" max="100" value="15">
+          </div>
+          
+          <!-- 不透明度 -->
+          <div class="control-item">
+            <div class="control-label">不透明度 <span class="control-val" id="valOpacity">100%</span></div>
+            <input type="range" id="inOpacity" min="10" max="100" value="100">
+          </div>
+
+          <!-- 水平边距 -->
+          <div class="control-item">
+            <div class="control-label">水平边距 <span class="control-val" id="valMarginX">20px</span></div>
+            <input type="range" id="inMarginX" min="0" max="600" value="20">
+          </div>
+
+          <!-- 垂直边距 -->
+          <div class="control-item">
+            <div class="control-label">垂直边距 <span class="control-val" id="valMarginY">20px</span></div>
+            <input type="range" id="inMarginY" min="0" max="600" value="20">
+          </div>
+
+          <!-- 位置 (九宫格) -->
+          <div class="control-item full-width">
+            <div class="control-label" style="margin-bottom:8px;">快速定位</div>
+            <div class="pos-grid" id="posGrid">
+              <button class="pos-btn active" data-val="nw" title="左上角">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 19H5V5h14v14z"></path><path fill="currentColor" stroke="none" d="M6 6h6v6H6z"/></svg>
+              </button>
+              <button class="pos-btn" data-val="ne" title="右上角">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 19H5V5h14v14z"></path><path fill="currentColor" stroke="none" d="M12 6h6v6h-6z"/></svg>
+              </button>
+              <button class="pos-btn" data-val="center" title="正中间">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 19H5V5h14v14z"></path><path fill="currentColor" stroke="none" d="M9 9h6v6H9z"/></svg>
+              </button>
+              <button class="pos-btn" data-val="sw" title="左下角">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 19H5V5h14v14z"></path><path fill="currentColor" stroke="none" d="M6 12h6v6H6z"/></svg>
+              </button>
+              <button class="pos-btn" data-val="se" title="右下角">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 19H5V5h14v14z"></path><path fill="currentColor" stroke="none" d="M12 12h6v6h-6z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 右侧：产品图与预览 -->
+    <div style="display:flex; flex-direction:column; gap:24px;">
+      
+      <!-- 2. 产品图上传 -->
+      <div class="card">
+        <div style="display:flex; justify-content:space-between;">
+          <h3 class="card-title">② 选择产品图（批量）</h3>
+          <button class="btn btn-outline" style="padding:4px 10px; font-size:12px;" id="clearInputBtn">清空列表</button>
+        </div>
+
+        <div class="upload-box" id="imgsDrop">
+          <svg class="upload-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+          <div class="upload-text">点击或拖拽产品图到此处</div>
+          <div class="upload-hint">支持多选，JPG / PNG / WebP</div>
+          <input type="file" id="imgsInput" accept="image/*" multiple>
+        </div>
+
+        <div class="file-stats">
+          <span>待处理文件数：<b id="fileCount" style="color:var(--text-main)">0</b> 张</span>
+          <span id="firstFileName" style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+        </div>
+
+        <!-- 实时预览区 -->
+        <div style="border-top:1px dashed var(--border); margin-top:10px; padding-top:20px;">
+          <h4 style="margin:0 0 12px; font-size:14px; color:var(--text-sub);">效果预览 (第一张图) <span id="manualHint" style="display:none; color:var(--primary); font-weight:normal; margin-left:8px;">(请在下方图片上按住 Logo 拖动)</span></h4>
+          <div class="live-preview-wrap" id="previewWrap">
+            <div class="live-preview-empty">
+              上传 Logo 和产品图后<br>此处将显示合成预览
+            </div>
+            <!-- Canvas 会被动态插入到这里 -->
+          </div>
+        </div>
+
+        <!-- 底部操作 -->
+        <div class="action-bar">
+          <button id="runBtn" class="btn btn-primary" disabled>开始批量生成</button>
+          <button id="zipBtn" class="btn btn-outline" disabled>打包下载 ZIP</button>
+          <span id="statusText" style="margin-left:auto; font-size:13px; color:var(--text-sub); display:flex; align-items:center;">就绪</span>
+        </div>
+      </div>
+
+      <!-- 结果展示 -->
+      <div id="resultArea" style="display:none;">
+        <h3 style="font-size:18px; margin-bottom:16px;">处理结果</h3>
+        <div class="result-grid" id="outGrid"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- 依赖库：JSZip 用于打包 -->
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+
+<script>
+  // 工具函数：DOM 获取
+  const $ = (id) => document.getElementById(id);
+
+  // 状态变量
+  let state = {
+    logoImg: null,      // Image Object
+    productFiles: [],   // Array<File>
+    firstProductImg: null, // Image Object (用于预览)
+    outputItems: [],    // Array<{name, url, blob}>
+    isProcessing: false
+  };
+
+  // 配置项
+  const config = {
+    scale: 15,
+    opacity: 100,
+    marginX: 20,
+    marginY: 20,
+    pos: 'nw',
+    isManual: false,
+    manualPos: { x: 0, y: 0 } // Normalized coordinates (0-1)
+  };
+
+  // DOM 元素引用
+  const ui = {
+    logoInput: $('logoInput'),
+    logoDrop: $('logoDrop'),
+    logoPreview: $('logoPreview'),
+    logoPlaceholder: $('logoPlaceholder'),
+    imgsInput: $('imgsInput'),
+    imgsDrop: $('imgsDrop'),
+    fileCount: $('fileCount'),
+    firstFileName: $('firstFileName'),
+    previewWrap: $('previewWrap'),
+    manualHint: $('manualHint'),
+    
+    // 拖拽遮罩相关
+    splitOverlay: $('splitDragOverlay'),
+    zoneLeft: $('dragZoneLeft'),
+    zoneRight: $('dragZoneRight'),
+
+    inputs: {
+      scale: $('inScale'),
+      opacity: $('inOpacity'),
+      marginX: $('inMarginX'),
+      marginY: $('inMarginY'),
+      manual: $('manualMode')
+    },
+    posBtns: document.querySelectorAll('.pos-btn'),
+    posGrid: $('posGrid'),
+    
+    vals: {
+      scale: $('valScale'),
+      opacity: $('valOpacity'),
+      marginX: $('valMarginX'),
+      marginY: $('valMarginY')
+    },
+    btns: {
+      run: $('runBtn'),
+      zip: $('zipBtn'),
+      clear: $('clearInputBtn'),
+      clearLogo: $('clearLogoBtn')
+    },
+    status: $('statusText'),
+    outGrid: $('outGrid'),
+    resultArea: $('resultArea')
+  };
+
+  // 全局鼠标X位置
+  let lastMouseX = 0;
+  
+  // 初始化监听器
+  function init() {
+    // Logo 上传
+    setupUpload(ui.logoDrop, ui.logoInput, handleLogoUpload, false);
+    
+    // 产品图上传
+    setupUpload(ui.imgsDrop, ui.imgsInput, handleProductsUpload, true);
+
+    // Logo 清除
+    ui.btns.clearLogo.addEventListener('click', clearLogo);
+
+    // 参数调整
+    Object.keys(ui.inputs).forEach(key => {
+      ui.inputs[key].addEventListener('input', (e) => {
+        // 更新数值显示
+        if (ui.vals[key]) {
+          let suffix = 'px';
+          if(key === 'scale' || key === 'opacity') suffix = '%';
+          ui.vals[key].textContent = e.target.value + suffix;
+        }
+        
+        // Manual mode toggle logic
+        if (key === 'manual') {
+            config.isManual = e.target.checked;
+            toggleManualModeUI();
+        } else {
+            // Update other config
+            config[key] = Number(e.target.value);
+        }
+        
+        // 触发预览更新 (防抖)
+        debounceUpdatePreview();
+      });
+    });
+    
+    // 位置按钮点击
+    ui.posBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        // 移除所有 active
+        ui.posBtns.forEach(b => b.classList.remove('active'));
+        // 激活当前
+        btn.classList.add('active');
+        // 更新配置
+        config.pos = btn.dataset.val;
+        debounceUpdatePreview();
+      });
+    });
+
+    ui.btns.clear.addEventListener('click', clearProducts);
+    ui.btns.run.addEventListener('click', runBatch);
+    ui.btns.zip.addEventListener('click', downloadZip);
+
+    // 全局粘贴监听
+    document.addEventListener('paste', handleGlobalPaste);
+    
+    // 监听鼠标位置，用于粘贴判定
+    document.addEventListener('mousemove', (e) => {
+        lastMouseX = e.clientX;
+    });
+
+    initDragAndDrop();
+    initManualDrag(); 
+  }
+
+  // 处理全局粘贴逻辑
+  function handleGlobalPaste(e) {
+    const items = e.clipboardData.items;
+    const files = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        files.push(items[i].getAsFile());
+      }
+    }
+
+    if (files.length === 0) return; 
+
+    // 获取分割线位置（逻辑同拖拽）
+    // 默认是 50%，如果有卡片布局则动态获取
+    let splitX = window.innerWidth / 2;
+    const leftCol = document.querySelector('.grid-layout > div:first-child');
+    if (leftCol) {
+       const rect = leftCol.getBoundingClientRect();
+       splitX = rect.right + 12; // Gap/2
+    }
+    
+    // 核心判定：依据鼠标位置左右分屏
+    if (lastMouseX < splitX) {
+        // 鼠标在左侧 -> 粘贴 Logo
+        handleLogoUpload([files[0]]);
+        // 反馈动画
+        ui.logoDrop.style.background = "#f0fdf4";
+        setTimeout(() => ui.logoDrop.style.background = "#fdfdfd", 300);
+    } else {
+        // 鼠标在右侧 -> 粘贴产品图
+        handleProductsUpload(files);
+        // 反馈动画
+        ui.imgsDrop.style.background = "#eff6ff";
+        setTimeout(() => ui.imgsDrop.style.background = "#fdfdfd", 300);
+    }
+  }
+
+  function toggleManualModeUI() {
+    const isManual = config.isManual;
+    
+    // Disable/Enable controls
+    ui.inputs.marginX.disabled = isManual;
+    ui.inputs.marginY.disabled = isManual;
+    
+    // Disable Position Grid visually
+    if (isManual) {
+        ui.posGrid.classList.add('disabled');
+    } else {
+        ui.posGrid.classList.remove('disabled');
+    }
+    
+    // Visual feedback
+    const color = isManual ? '#94a3b8' : 'var(--primary)';
+    ui.vals.marginX.style.color = color;
+    ui.vals.marginY.style.color = color;
+    
+    // Toggle Drag Hint and Cursor
+    ui.manualHint.style.display = isManual ? 'inline' : 'none';
+    ui.previewWrap.classList.toggle('manual-mode', isManual);
+
+    updateLivePreview(); 
+  }
+
+  // --- 手动拖拽逻辑 ---
+  let isDragging = false;
+  let lastMouse = { x: 0, y: 0 };
+  
+  function initManualDrag() {
+    const container = ui.previewWrap;
+
+    const startDrag = (e) => {
+        if (!config.isManual || !state.logoImg || !state.firstProductImg) return;
+        isDragging = true;
+        
+        // 记录鼠标初始位置
+        lastMouse.x = e.clientX || e.touches?.[0].clientX;
+        lastMouse.y = e.clientY || e.touches?.[0].clientY;
+        
+        e.preventDefault(); 
+    };
+
+    const endDrag = () => {
+        isDragging = false;
+    };
+
+    const onDrag = (e) => {
+        if (!isDragging || !config.isManual) return;
+        
+        const rect = container.getBoundingClientRect();
+        const canvas = container.querySelector('canvas');
+        if(!canvas) return;
+        
+        const rRatio = canvas.width / canvas.height;
+        const cRatio = rect.width / rect.height;
+        
+        let actualW, actualH, offX, offY;
+        
+        if (rRatio > cRatio) {
+            // Limited by width
+            actualW = rect.width;
+            actualH = rect.width / rRatio;
+            offX = 0;
+            offY = (rect.height - actualH) / 2;
+        } else {
+            // Limited by height
+            actualH = rect.height;
+            actualW = rect.height * rRatio;
+            offX = (rect.width - actualW) / 2;
+            offY = 0;
+        }
+        
+        const clientX = e.clientX || e.touches?.[0].clientX;
+        const clientY = e.clientY || e.touches?.[0].clientY;
+        
+        const x = clientX - rect.left - offX;
+        const y = clientY - rect.top - offY;
+
+        // 计算 Logo 居中偏移
+        if (state.logoImg) {
+            const logoAspect = state.logoImg.naturalWidth / state.logoImg.naturalHeight;
+            const dispLogoW = actualW * (config.scale / 100);
+            const dispLogoH = dispLogoW / logoAspect;
+
+            const centeredX = x - (dispLogoW / 2);
+            const centeredY = y - (dispLogoH / 2);
+
+            let normX = centeredX / actualW;
+            let normY = centeredY / actualH;
+            
+            // --- 核心修改：反向计算位置和边距 ---
+            const baseW = state.firstProductImg.naturalWidth;
+            const baseH = state.firstProductImg.naturalHeight;
+            const realX = Math.round(normX * baseW);
+            const realY = Math.round(normY * baseH);
+            const logoW = Math.round(baseW * (config.scale / 100));
+            const logoH = Math.round(logoW / logoAspect);
+
+            const midX = realX + logoW / 2;
+            const midY = realY + logoH / 2;
+            const isLeft = midX < baseW / 2;
+            const isTop = midY < baseH / 2;
+            
+            let newPos = '';
+            let newMx = 0;
+            let newMy = 0;
+            
+            if (isTop) {
+                if (isLeft) {
+                    newPos = 'nw';
+                    newMx = realX;
+                    newMy = realY;
+                } else {
+                    newPos = 'ne';
+                    newMx = baseW - realX - logoW;
+                    newMy = realY;
+                }
+            } else {
+                if (isLeft) {
+                    newPos = 'sw';
+                    newMx = realX;
+                    newMy = baseH - realY - logoH;
+                } else {
+                    newPos = 'se';
+                    newMx = baseW - realX - logoW;
+                    newMy = baseH - realY - logoH;
+                }
+            }
+
+            // 更新内部配置，但不刷新 UI（因为会闪烁且不可用），只更新预览
+            config.pos = newPos;
+            config.marginX = Math.max(0, newMx);
+            config.marginY = Math.max(0, newMy);
+            
+            // 同步更新 Manual Pos (用于 drawWatermark)
+            config.manualPos = { x: normX, y: normY };
+            
+            // 实时更新控制面板的显示（为了切换回自动模式时数据正确）
+            syncUIFromConfig();
+
+            updateLivePreview();
+        }
+    };
+
+    container.addEventListener('mousedown', startDrag);
+    container.addEventListener('touchstart', startDrag, {passive: false});
+    window.addEventListener('mouseup', endDrag);
+    window.addEventListener('touchend', endDrag);
+    window.addEventListener('mousemove', onDrag);
+    window.addEventListener('touchmove', onDrag, {passive: false});
+  }
+  
+  function syncUIFromConfig() {
+      // Update Range Inputs
+      ui.inputs.marginX.value = config.marginX;
+      ui.inputs.marginY.value = config.marginY;
+      
+      // Update Text Display
+      ui.vals.marginX.textContent = config.marginX + 'px';
+      ui.vals.marginY.textContent = config.marginY + 'px';
+      
+      // Update Position Buttons Active State
+      ui.posBtns.forEach(btn => {
+          if (btn.dataset.val === config.pos) {
+              btn.classList.add('active');
+          } else {
+              btn.classList.remove('active');
+          }
+      });
+  }
+
+  // --- 全屏分屏拖拽逻辑 ---
+  let dragCounter = 0;
+
+  function initDragAndDrop() {
+    document.body.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      dragCounter++;
+      
+      const leftCol = document.querySelector('.grid-layout > div:first-child');
+      if (leftCol) {
+        const rect = leftCol.getBoundingClientRect();
+        const splitX = rect.right + 12; // Gap is 24px, split at 12
+        ui.zoneLeft.style.width = splitX + 'px';
+      }
+      
+      ui.splitOverlay.classList.add('active');
+    });
+
+    document.body.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      dragCounter--;
+      if (dragCounter === 0) {
+        ui.splitOverlay.classList.remove('active');
+      }
+    });
+
+    document.body.addEventListener('dragover', (e) => {
+      e.preventDefault();
+    });
+
+    document.body.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dragCounter = 0;
+      ui.splitOverlay.classList.remove('active');
+    });
+
+    ui.zoneLeft.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      ui.zoneLeft.classList.add('hover');
+    });
+    ui.zoneLeft.addEventListener('dragleave', () => ui.zoneLeft.classList.remove('hover'));
+    ui.zoneLeft.addEventListener('drop', (e) => {
+      e.preventDefault();
+      ui.zoneLeft.classList.remove('hover');
+      if (e.dataTransfer.files.length) handleLogoUpload(e.dataTransfer.files);
+    });
+
+    ui.zoneRight.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      ui.zoneRight.classList.add('hover');
+    });
+    ui.zoneRight.addEventListener('dragleave', () => ui.zoneRight.classList.remove('hover'));
+    ui.zoneRight.addEventListener('drop', (e) => {
+      e.preventDefault();
+      ui.zoneRight.classList.remove('hover');
+      if (e.dataTransfer.files.length) handleProductsUpload(e.dataTransfer.files);
+    });
+  }
+
+  function setupUpload(dropZone, input, callback, isMultiple) {
+    dropZone.addEventListener('click', () => input.click());
+    input.addEventListener('change', (e) => {
+      if(e.target.files.length) callback(e.target.files);
+      input.value = ''; 
+    });
+    dropZone.addEventListener('dragover', e => e.preventDefault());
+    dropZone.addEventListener('drop', e => e.preventDefault());
+  }
+
+  async function handleLogoUpload(files) {
+    const file = files[0];
+    if (!file.type.startsWith('image/')) return alert('请上传图片文件');
+
+    const img = await loadImage(file);
+    state.logoImg = img;
+    
+    ui.logoPreview.src = img.src;
+    ui.logoPreview.style.display = 'block';
+    ui.logoPlaceholder.style.display = 'none';
+    ui.logoDrop.classList.add('has-file');
+    ui.btns.clearLogo.style.display = 'inline-block';
+    
+    updateButtonState();
+    updateLivePreview();
+  }
+
+  function clearLogo() {
+    state.logoImg = null;
+    ui.logoInput.value = '';
+    ui.logoPreview.src = '';
+    ui.logoPreview.style.display = 'none';
+    ui.logoPlaceholder.style.display = 'block';
+    ui.logoDrop.classList.remove('has-file');
+    ui.btns.clearLogo.style.display = 'none';
+    
+    updateButtonState();
+    updateLivePreview();
+  }
+
+  async function handleProductsUpload(files) {
+    const newFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (newFiles.length === 0) return;
+
+    const existingKeys = new Set(state.productFiles.map(f => f.name + f.size));
+    let addedCount = 0;
+    
+    for (const f of newFiles) {
+      if (!existingKeys.has(f.name + f.size)) {
+        state.productFiles.push(f);
+        addedCount++;
+      }
+    }
+
+    if (addedCount > 0) {
+      if (!state.firstProductImg && state.productFiles.length > 0) {
+        state.firstProductImg = await loadImage(state.productFiles[0]);
+      }
+      
+      ui.fileCount.textContent = state.productFiles.length;
+      ui.firstFileName.textContent = "预览：" + state.productFiles[0].name;
+      ui.imgsDrop.classList.add('has-file');
+      
+      updateButtonState();
+      updateLivePreview();
+    }
+  }
+
+  function clearProducts() {
+    state.productFiles = [];
+    state.firstProductImg = null;
+    ui.fileCount.textContent = '0';
+    ui.firstFileName.textContent = '';
+    ui.imgsDrop.classList.remove('has-file');
+    ui.previewWrap.innerHTML = '<div class="live-preview-empty">上传 Logo 和产品图后<br>此处将显示合成预览</div>';
+    ui.outGrid.innerHTML = '';
+    ui.resultArea.style.display = 'none';
+    state.outputItems = [];
+    updateButtonState();
+  }
+
+  function loadImage(fileOrUrl) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = (fileOrUrl instanceof File) ? URL.createObjectURL(fileOrUrl) : fileOrUrl;
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
+  function drawWatermark(baseImg, logoImg, cfg) {
+    const cvs = document.createElement('canvas');
+    cvs.width = baseImg.naturalWidth;
+    cvs.height = baseImg.naturalHeight;
+    const ctx = cvs.getContext('2d');
+
+    ctx.drawImage(baseImg, 0, 0);
+
+    const logoAspect = logoImg.naturalWidth / logoImg.naturalHeight;
+    let w = Math.round(cvs.width * (cfg.scale / 100));
+    let h = Math.round(w / logoAspect);
+
+    // 计算坐标
+    let x = 0, y = 0;
+    
+    if (cfg.isManual) {
+        // Manual Mode: use manualPos (normalized 0-1)
+        x = cfg.manualPos.x * cvs.width;
+        y = cfg.manualPos.y * cvs.height;
+    } else {
+        // Standard Mode
+        const mx = cfg.marginX;
+        const my = cfg.marginY;
+        switch(cfg.pos) {
+          case 'nw': x = mx; y = my; break;
+          case 'ne': x = cvs.width - w - mx; y = my; break;
+          case 'sw': x = mx; y = cvs.height - h - my; break;
+          case 'se': x = cvs.width - w - mx; y = cvs.height - h - my; break;
+          case 'center': 
+            x = (cvs.width - w) / 2;
+            y = (cvs.height - h) / 2;
+            break;
+        }
+        
+        // Sync manual pos
+        config.manualPos = { x: x/cvs.width, y: y/cvs.height };
+    }
+
+    ctx.save();
+    ctx.globalAlpha = cfg.opacity / 100;
+    ctx.drawImage(logoImg, x, y, w, h);
+    ctx.restore();
+
+    return cvs;
+  }
+
+  let debounceTimer;
+  function debounceUpdatePreview() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(updateLivePreview, 50);
+  }
+
+  function updateLivePreview() {
+    if (!state.logoImg || !state.firstProductImg) {
+        if (!state.logoImg && state.firstProductImg) {
+             ui.previewWrap.innerHTML = '<div class="live-preview-empty">请上传 Logo <br>以查看合成效果</div>';
+             return;
+        } else if (!state.firstProductImg) {
+             ui.previewWrap.innerHTML = '<div class="live-preview-empty">上传 Logo 和产品图后<br>此处将显示合成预览</div>';
+             return;
+        }
+    }
+    
+    const cvs = drawWatermark(state.firstProductImg, state.logoImg, config);
+    
+    ui.previewWrap.innerHTML = '';
+    ui.previewWrap.appendChild(cvs);
+  }
+
+  function updateButtonState() {
+    const ready = state.logoImg && state.productFiles.length > 0;
+    ui.btns.run.disabled = !ready || state.isProcessing;
+    ui.btns.zip.disabled = state.outputItems.length === 0;
+  }
+
+  async function runBatch() {
+    if (state.isProcessing) return;
+    state.isProcessing = true;
+    updateButtonState();
+    
+    ui.outGrid.innerHTML = '';
+    state.outputItems.forEach(i => URL.revokeObjectURL(i.url));
+    state.outputItems = [];
+    ui.resultArea.style.display = 'block';
+
+    const total = state.productFiles.length;
+    
+    for (let i = 0; i < total; i++) {
+      const file = state.productFiles[i];
+      ui.status.textContent = `正在处理: ${i+1} / ${total}`;
+      
+      try {
+        const img = await loadImage(file);
+        const cvs = drawWatermark(img, state.logoImg, config);
+        
+        const isPng = file.name.toLowerCase().endsWith('.png');
+        const ext = isPng ? '.png' : '.jpg';
+        const type = isPng ? 'image/png' : 'image/jpeg';
+        
+        const blob = await new Promise(r => cvs.toBlob(r, type, 0.9));
+        const url = URL.createObjectURL(blob);
+        const name = file.name.replace(/\.[^/.]+$/, "") + "_logo" + ext;
+
+        state.outputItems.push({ name, url, blob });
+        addResultToGrid(name, url);
+        
+      } catch (err) {
+        console.error("Failed to process", file.name, err);
+      }
+    }
+
+    ui.status.textContent = `完成！共生成 ${state.outputItems.length} 张图片`;
+    state.isProcessing = false;
+    updateButtonState();
+  }
+
+  function addResultToGrid(name, url) {
+    const div = document.createElement('div');
+    div.className = 'result-item';
+    div.innerHTML = `
+      <div class="result-thumb"><img src="${url}"></div>
+      <div class="result-info">
+        <span style="font-size:12px; color:#334155; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:120px;" title="${name}">${name}</span>
+        <a href="${url}" download="${name}" class="download-link">下载</a>
+      </div>
+    `;
+    ui.outGrid.appendChild(div);
+  }
+
+  async function downloadZip() {
+    if (!state.outputItems.length) return;
+    ui.btns.zip.textContent = '打包中...';
+    ui.btns.zip.disabled = true;
+
+    try {
+      const zip = new JSZip();
+      const folder = zip.folder("images_with_logo");
+      state.outputItems.forEach(item => folder.file(item.name, item.blob));
+      const content = await zip.generateAsync({type: "blob"});
+      saveAs(content, "batch_images.zip");
+      ui.status.textContent = "ZIP 下载已开始";
+    } catch (e) {
+      alert("打包失败: " + e.message);
+    } finally {
+      ui.btns.zip.textContent = '打包下载 ZIP';
+      ui.btns.zip.disabled = false;
+    }
+  }
+
+  init();
+
+</script>
+</body>
+</html>
