@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>纯净图片格式转换工具</title>
+  <style>
+    :root {
+      --primary: #6366f1; /* Indigo */
+      --primary-hover: #4f46e5;
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --text-main: #1e293b;
+      --text-sub: #64748b;
+      --success: #10b981;
+      --radius: 12px;
+      --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; outline-color: var(--primary); }
+    
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text-main);
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    /* 头部 */
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .header h1 {
+      font-size: 28px;
+      font-weight: 800;
+      margin: 0 0 8px;
+      color: #0f172a;
+    }
+    .header p {
+      color: var(--text-sub);
+      margin: 0;
+      font-size: 15px;
+    }
+    .badge {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 4px 12px;
+      background: #e0e7ff;
+      color: #3730a3;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* 主卡片 */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+      overflow: hidden;
+    }
+
+    /* 1. 上传区 */
+    .upload-area {
+      padding: 40px 20px;
+      text-align: center;
+      background: #fdfdfd;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .upload-area:hover { background: #f1f5f9; }
+    .upload-icon {
+      width: 48px;
+      height: 48px;
+      color: #94a3b8;
+      margin-bottom: 16px;
+    }
+    .btn-upload {
+      background: var(--primary);
+      color: white;
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      font-size: 15px;
+      transition: background 0.2s;
+    }
+    .btn-upload:hover { background: var(--primary-hover); }
+    .upload-hint {
+      margin-top: 12px;
+      color: var(--text-sub);
+      font-size: 13px;
+    }
+
+    /* 2. 控制栏 */
+    .controls {
+      padding: 24px;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+      display: flex; 
+      justify-content: center;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .control-group label {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-main);
+      white-space: nowrap;
+    }
+    
+    .select-box {
+      width: 200px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      background: white;
+      color: var(--text-main);
+      cursor: pointer;
+    }
+    .select-box:focus {
+      outline: 2px solid var(--primary);
+      border-color: var(--primary);
+    }
+
+    /* 3. 文件列表 */
+    .file-list {
+      padding: 0;
+      margin: 0;
+      list-style: none;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .file-item {
+      display: flex;
+      align-items: center;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      gap: 16px;
+      animation: slideIn 0.2s ease-out;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .file-item:last-child { border-bottom: none; }
+
+    .file-thumb {
+      width: 48px;
+      height: 48px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+    }
+    .file-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .file-name {
+      font-weight: 500;
+      font-size: 14px;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .file-meta {
+      font-size: 12px;
+      color: var(--text-sub);
+      display: flex;
+      gap: 12px;
+    }
+    .meta-tag {
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    
+    .file-status {
+      text-align: right;
+      min-width: 100px;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 99px;
+    }
+    .status-waiting { background: #f1f5f9; color: var(--text-sub); }
+    .status-processing { background: #e0e7ff; color: var(--primary); }
+    .status-success { background: #dcfce7; color: #166534; }
+    
+    .download-btn {
+      font-size: 12px;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 600;
+      margin-top: 4px;
+      display: inline-block;
+      cursor: pointer;
+    }
+    .download-btn:hover { text-decoration: underline; }
+
+    /* 底部全局操作 */
+    .footer-actions {
+      padding: 20px 24px;
+      background: #f8fafc;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .batch-btn {
+      background: var(--text-main);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    .batch-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .batch-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    
+    .btn-run { background: var(--primary); }
+    .btn-run:hover:not(:disabled) { background: var(--primary-hover); }
+
+    .empty-state {
+      padding: 40px;
+      text-align: center;
+      color: var(--text-sub);
+      font-size: 14px;
+    }
+
+    /* 拖拽全屏覆盖 */
+    .drag-cover {
+      position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      border: 8px dashed var(--primary); color: var(--primary); font-size: 24px; font-weight: 700;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .dragging .drag-cover { opacity: 1; pointer-events: auto; }
+
+    input[type="file"] { display: none; }
+  </style>
+</head>
+<body>
+
+<!-- 拖拽覆盖层 -->
+<div class="drag-cover">
+  <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-bottom:16px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+  松开鼠标添加文件
+</div>
+
+<div class="container">
+  
+  <div class="header">
+    <h1>纯净图片格式转换工具</h1>
+    <p>本地无损处理 | 支持批量 | 隐私安全</p>
+    <span class="badge">JPG / PNG / WebP 互转</span>
+  </div>
+
+  <div class="card">
+    
+    <!-- 1. 上传区 -->
+    <div class="upload-area" id="dropZone">
+      <svg class="upload-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+      <div>
+        <button class="btn-upload" onclick="document.getElementById('fileInput').click()">选择图片</button>
+      </div>
+      <div class="upload-hint">支持 JPG, PNG, WebP, GIF 等 | 可批量拖拽 | 支持粘贴 (Ctrl+V)</div>
+      <input type="file" id="fileInput" multiple accept="image/*">
+    </div>
+
+    <!-- 2. 全局设置 -->
+    <div class="controls">
+      <!-- 仅保留目标格式选择 -->
+      <div class="control-group">
+        <label>统一转换为：</label>
+        <select id="formatSelect" class="select-box">
+          <option value="image/jpeg" selected>JPG (兼容性最好)</option>
+          <option value="image/png">PNG (保留透明背景)</option>
+          <option value="image/webp">WebP (体积更小)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 3. 文件列表 -->
+    <div id="fileListContainer">
+      <div class="empty-state">暂无文件，请先上传</div>
+    </div>
+
+    <!-- 4. 底部操作 -->
+    <div class="footer-actions">
+      <div style="font-size:13px; color:var(--text-sub)">
+        已添加 <strong id="totalCount">0</strong> 张图片
+      </div>
+      <div style="display:flex; gap:12px">
+        <button class="batch-btn" style="background:#fff; color:#e11d48; border:1px solid #e2e8f0" id="clearBtn">
+          清空列表
+        </button>
+        <button class="batch-btn btn-run" id="processBtn" disabled>
+          开始转换
+        </button>
+        <button class="batch-btn" id="downloadAllBtn" disabled style="background:#0f172a; color:white;">
+          <svg style="width:16px;height:16px" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+          打包下载 ZIP
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 依赖库 -->
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+
+<script>
+  // DOM Elements
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  const fileListContainer = document.getElementById('fileListContainer');
+  const formatSelect = document.getElementById('formatSelect');
+  const totalCountEl = document.getElementById('totalCount');
+  const processBtn = document.getElementById('processBtn');
+  const downloadAllBtn = document.getElementById('downloadAllBtn');
+  const clearBtn = document.getElementById('clearBtn');
+
+  // State
+  let filesData = []; 
+  let isProcessing = false;
+
+  // Events
+  formatSelect.addEventListener('change', resetStatusToWaiting);
+  
+  clearBtn.addEventListener('click', () => {
+    filesData.forEach(f => { if(f.processedUrl) URL.revokeObjectURL(f.processedUrl); });
+    filesData = [];
+    renderList();
+  });
+
+  processBtn.addEventListener('click', processQueue);
+  downloadAllBtn.addEventListener('click', downloadAllZip);
+
+  // File Input Change
+  fileInput.addEventListener('change', (e) => {
+    handleFiles(e.target.files);
+    fileInput.value = ''; 
+  });
+
+  // 全屏拖拽支持
+  const body = document.body;
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+    body.addEventListener(evt, e => {
+      e.preventDefault(); e.stopPropagation();
+    });
+  });
+  
+  body.addEventListener('dragenter', () => body.classList.add('dragging'));
+  
+  body.addEventListener('dragleave', (e) => {
+    // 只有当鼠标真正离开窗口时才移除样式
+    if (e.clientX === 0 && e.clientY === 0) {
+      body.classList.remove('dragging');
+    }
+  });
+  
+  body.addEventListener('drop', (e) => {
+    body.classList.remove('dragging');
+    handleFiles(e.dataTransfer.files);
+  });
+
+  // Paste
+  document.addEventListener('paste', (e) => {
+    const items = e.clipboardData.items;
+    const files = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        files.push(items[i].getAsFile());
+      }
+    }
+    if (files.length > 0) {
+      handleFiles(files);
+    }
+  });
+
+  // Logic
+  function handleFiles(fileList) {
+    const newFiles = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+    
+    if(newFiles.length === 0) {
+      const fallbackFiles = Array.from(fileList).filter(f => 
+        /\.(jpg|jpeg|png|webp|gif|bmp|svg|avif|ico|tiff)$/i.test(f.name)
+      );
+      fallbackFiles.forEach(f => newFiles.push(f));
+    }
+
+    if (newFiles.length === 0) return;
+
+    newFiles.forEach(f => {
+      if(filesData.some(item => item.file.name === f.name && item.file.size === f.size)) return;
+
+      filesData.push({
+        id: Math.random().toString(36).substr(2, 9),
+        file: f,
+        status: 'waiting', 
+        processedBlob: null,
+        processedUrl: null,
+        info: {}
+      });
+    });
+
+    renderList();
+  }
+
+  function resetStatusToWaiting() {
+    let changed = false;
+    filesData.forEach(f => {
+      if (f.status === 'done' || f.status === 'error') {
+        if (f.processedUrl) URL.revokeObjectURL(f.processedUrl);
+        f.status = 'waiting';
+        f.processedBlob = null;
+        f.processedUrl = null;
+        changed = true;
+      }
+    });
+    if (changed) renderList();
+  }
+
+  function renderList() {
+    totalCountEl.innerText = filesData.length;
+    
+    const anyWaiting = filesData.some(f => f.status === 'waiting');
+    processBtn.disabled = !anyWaiting || isProcessing || filesData.length === 0;
+    
+    const anyDone = filesData.some(f => f.status === 'done');
+    downloadAllBtn.disabled = !anyDone;
+
+    if (filesData.length === 0) {
+      fileListContainer.innerHTML = '<div class="empty-state">暂无文件，请先上传</div>';
+      return;
+    }
+
+    let html = '<ul class="file-list">';
+    filesData.forEach(item => {
+      const sizeStr = (item.file.size / 1024).toFixed(1) + ' KB';
+      let statusHtml = '';
+      let metaHtml = `<span class="meta-tag">原大小: ${sizeStr}</span>`;
+
+      if (item.status === 'waiting') {
+        statusHtml = `<span class="status-badge status-waiting">等待转换</span>`;
+      } else if (item.status === 'processing') {
+        statusHtml = `<span class="status-badge status-processing">转换中...</span>`;
+      } else if (item.status === 'done') {
+        const newSizeStr = (item.processedBlob.size / 1024).toFixed(1) + ' KB';
+        // 计算文件名预览
+        let ext = "jpg";
+        if (item.processedBlob.type === "image/png") ext = "png";
+        else if (item.processedBlob.type === "image/webp") ext = "webp";
+        
+        statusHtml = `
+          <span class="status-badge status-success">完成</span>
+          <a class="download-btn" onclick="downloadSingle('${item.id}')">下载</a>
+        `;
+        metaHtml += `<span class="meta-tag">→ ${item.info.width}x${item.info.height} (${ext.toUpperCase()}, ${newSizeStr})</span>`;
+      } else if (item.status === 'error') {
+        statusHtml = `<span class="status-badge" style="background:#fee2e2;color:#991b1b">失败</span>`;
+      }
+
+      const thumbUrl = item.processedUrl || URL.createObjectURL(item.file);
+
+      html += `
+        <li class="file-item">
+          <img src="${thumbUrl}" class="file-thumb" loading="lazy">
+          <div class="file-info">
+            <div class="file-name" title="${item.file.name}">${item.file.name}</div>
+            <div class="file-meta">
+              ${metaHtml}
+            </div>
+          </div>
+          <div class="file-status">
+            ${statusHtml}
+          </div>
+        </li>
+      `;
+    });
+    html += '</ul>';
+    fileListContainer.innerHTML = html;
+  }
+
+  async function processQueue() {
+    if (isProcessing) return;
+    
+    const idx = filesData.findIndex(f => f.status === 'waiting');
+    if (idx === -1) {
+      renderList(); 
+      return;
+    }
+
+    isProcessing = true;
+    filesData[idx].status = 'processing';
+    renderList(); 
+
+    await new Promise(r => setTimeout(r, 20));
+
+    try {
+      const result = await convertImage(filesData[idx].file);
+      filesData[idx].processedBlob = result.blob;
+      filesData[idx].processedUrl = URL.createObjectURL(result.blob);
+      filesData[idx].info = { width: result.width, height: result.height };
+      filesData[idx].status = 'done';
+    } catch (err) {
+      console.error(err);
+      filesData[idx].status = 'error';
+    }
+
+    isProcessing = false;
+    processQueue(); 
+  }
+
+  function convertImage(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const canvas = document.createElement('canvas');
+        
+        // 保持原尺寸
+        const w = img.naturalWidth;
+        const h = img.naturalHeight;
+
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        
+        const outputType = formatSelect.value;
+
+        // 如果转 JPG，填充白色背景防止透明变黑
+        if (outputType === 'image/jpeg') {
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, w, h);
+        }
+        
+        ctx.drawImage(img, 0, 0, w, h);
+
+        // 使用高画质导出 (0.92 是浏览器默认高质量)
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve({ blob, width: w, height: h });
+          } else {
+            reject(new Error('Conversion failed'));
+          }
+        }, outputType, 0.92);
+      };
+      
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("Image load failed"));
+      };
+      img.src = url;
+    });
+  }
+
+  window.downloadSingle = (id) => {
+    const item = filesData.find(f => f.id === id);
+    if (!item) return;
+    
+    let ext = "jpg";
+    if (item.processedBlob.type === "image/png") ext = "png";
+    else if (item.processedBlob.type === "image/webp") ext = "webp";
+    
+    const oldName = item.file.name.substring(0, item.file.name.lastIndexOf('.')) || item.file.name;
+    saveAs(item.processedBlob, `${oldName}.${ext}`);
+  };
+
+  async function downloadAllZip() {
+    const zip = new JSZip();
+    const folder = zip.folder("converted_images");
+
+    filesData.forEach(item => {
+      if (item.status === 'done') {
+        let ext = "jpg";
+        if (item.processedBlob.type === "image/png") ext = "png";
+        else if (item.processedBlob.type === "image/webp") ext = "webp";
+        
+        const oldName = item.file.name.substring(0, item.file.name.lastIndexOf('.')) || item.file.name;
+        folder.file(`${oldName}.${ext}`, item.processedBlob);
+      }
+    });
+
+    const content = await zip.generateAsync({type:"blob"});
+    saveAs(content, "images_converted.zip");
+  }
+
+</script>
+</body>
+</html>

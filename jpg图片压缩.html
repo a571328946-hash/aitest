@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>本地 JPG 质量压缩工具 - 全屏拖拽版</title>
+    <!-- 加载 Tailwind CSS 样式 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 加载 React 运行时 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <!-- 加载 Babel 用于解析 JSX -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <!-- 加载 JSZip -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- 加载 Lucide 图标库 -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; overflow-x: hidden; }
+        .drag-overlay {
+            backdrop-filter: blur(4px);
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // 图标组件包装器
+        const Icon = ({ name, size = 16, className = "" }) => {
+            useEffect(() => {
+                if (window.lucide) {
+                    window.lucide.createIcons();
+                }
+            }, [name]);
+
+            return (
+                <span 
+                    className={`inline-flex items-center justify-center ${className}`}
+                    dangerouslySetInnerHTML={{ 
+                        __html: `<i data-lucide="${name}" style="width: ${size}px; height: ${size}px;"></i>` 
+                    }} 
+                />
+            );
+        };
+
+        const App = () => {
+            const [tasks, setTasks] = useState([]);
+            const [quality, setQuality] = useState(0.75);
+            const [isProcessing, setIsProcessing] = useState(false);
+            const [isZipping, setIsZipping] = useState(false);
+            const [isDragging, setIsDragging] = useState(false); // 全屏拖拽状态
+            const fileInputRef = useRef(null);
+            const dragCounter = useRef(0); // 处理拖拽进入子元素触发 leave 的问题
+
+            const formatSize = (bytes) => {
+                if (bytes === 0) return '0 B';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            };
+
+            const generateId = () => Math.random().toString(36).substring(2, 11);
+
+            const createTasks = (fileList) => {
+                const newTasks = [];
+                Array.from(fileList).forEach(file => {
+                    if (file.type !== 'image/jpeg') {
+                        newTasks.push({
+                            id: generateId(),
+                            file,
+                            status: 'error',
+                            error: '仅支持 JPG/JPEG',
+                            meta: { name: file.name, size: file.size }
+                        });
+                        return;
+                    }
+                    const isDuplicate = tasks.some(t => t.meta.name === file.name && t.meta.size === file.size);
+                    if (!isDuplicate) {
+                        newTasks.push({
+                            id: generateId(),
+                            file,
+                            status: 'queued',
+                            quality: quality,
+                            meta: { name: file.name, size: file.size, previewUrl: URL.createObjectURL(file) }
+                        });
+                    }
+                });
+                setTasks(prev => [...prev, ...newTasks]);
+            };
+
+            const compressImage = async (task) => {
+                const bitmap = await createImageBitmap(task.file);
+                const canvas = document.createElement('canvas');
+                canvas.width = bitmap.width;
+                canvas.height = bitmap.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(bitmap, 0, 0);
+                return new Promise((resolve) => {
+                    canvas.toBlob((blob) => {
+                        bitmap.close();
+                        const outName = task.meta.name.replace(/\.(jpe?g)$/i, '') + `_q${Math.round(task.quality * 100)}.jpg`;
+                        resolve({
+                            blob,
+                            outName,
+                            outSize: blob.size,
+                            ratio: ((1 - blob.size / task.meta.size) * 100).toFixed(1)
+                        });
+                    }, 'image/jpeg', task.quality);
+                });
+            };
+
+            const handleStartCompression = async () => {
+                if (isProcessing) return;
+                const queuedTasks = tasks.filter(t => t.status === 'queued');
+                if (queuedTasks.length === 0) return;
+
+                setIsProcessing(true);
+                for (const task of queuedTasks) {
+                    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'compressing', quality: quality } : t));
+                    try {
+                        const result = await compressImage({...task, quality});
+                        setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'done', result } : t));
+                    } catch (err) {
+                        setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: 'error', error: '压缩失败' } : t));
+                    }
+                }
+                setIsProcessing(false);
+            };
+
+            // 全屏拖拽处理逻辑
+            const handleDragEnter = (e) => {
+                e.preventDefault();
+                dragCounter.current++;
+                if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+                    setIsDragging(true);
+                }
+            };
+
+            const handleDragLeave = (e) => {
+                e.preventDefault();
+                dragCounter.current--;
+                if (dragCounter.current === 0) {
+                    setIsDragging(false);
+                }
+            };
+
+            const handleDrop = (e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                dragCounter.current = 0;
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    createTasks(e.dataTransfer.files);
+                }
+            };
+
+            const handlePaste = useCallback((e) => {
+                const items = e.clipboardData?.items;
+                if (!items) return;
+                const files = [];
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type.indexOf('image/jpeg') !== -1) {
+                        const file = items[i].getAsFile();
+                        if (file) files.push(file);
+                    }
+                }
+                if (files.length > 0) createTasks(files);
+            }, [tasks]);
+
+            useEffect(() => {
+                window.addEventListener('paste', handlePaste);
+                return () => window.removeEventListener('paste', handlePaste);
+            }, [handlePaste]);
+
+            const downloadZip = async () => {
+                if (isZipping) return;
+                setIsZipping(true);
+                const zip = new JSZip();
+                const folder = zip.folder("compressed_images");
+                tasks.filter(t => t.status === 'done').forEach(t => {
+                    folder.file(t.result.outName, t.result.blob);
+                });
+                const content = await zip.generateAsync({ type: "blob" });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(content);
+                a.download = "compressed_images.zip";
+                a.click();
+                setIsZipping(false);
+            };
+
+            const queuedCount = tasks.filter(t => t.status === 'queued').length;
+            const doneCount = tasks.filter(t => t.status === 'done').length;
+
+            return (
+                <div 
+                    className="min-h-screen flex flex-col relative"
+                    onDragEnter={handleDragEnter}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                >
+                    {/* 全屏拖拽遮罩 */}
+                    {isDragging && (
+                        <div className="fixed inset-0 z-[100] drag-overlay bg-blue-600/20 flex items-center justify-center border-[6px] border-dashed border-blue-500 m-4 rounded-3xl pointer-events-none">
+                            <div className="bg-white px-8 py-6 rounded-2xl shadow-2xl flex flex-col items-center animate-bounce">
+                                <Icon name="upload-cloud" size={64} className="text-blue-600 mb-4" />
+                                <p className="text-2xl font-bold text-blue-600">释放文件以添加</p>
+                            </div>
+                        </div>
+                    )}
+
+                    <header className="bg-white border-b px-6 py-4 sticky top-0 z-10 shadow-sm">
+                        <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-blue-600 p-2 rounded-lg text-white flex items-center justify-center">
+                                    <Icon name="image" size={24} />
+                                </div>
+                                <div>
+                                    <h1 className="text-xl font-bold">本地图片压缩</h1>
+                                    <p className="text-xs text-slate-500">将文件拖到页面任何地方即可添加</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-full">
+                                    <Icon name="settings-2" size={14} className="text-slate-500" />
+                                    <span className="text-sm font-medium whitespace-nowrap">质量: {Math.round(quality * 100)}%</span>
+                                    <input type="range" min="0.1" max="0.95" step="0.05" value={quality} onChange={e => setQuality(parseFloat(e.target.value))} className="w-24 accent-blue-600" />
+                                </div>
+                                <button onClick={() => fileInputRef.current.click()} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-sm">
+                                    <Icon name="plus" size={16} /> 添加文件
+                                </button>
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="flex-grow max-w-5xl mx-auto w-full p-6">
+                        <input type="file" ref={fileInputRef} className="hidden" multiple accept="image/jpeg" onChange={e => createTasks(e.target.files)} />
+                        
+                        {tasks.length === 0 ? (
+                            <div className="mt-10 border-2 border-dashed border-slate-300 rounded-2xl p-20 flex flex-col items-center justify-center bg-white">
+                                <Icon name="mouse-pointer-2" size={48} className="text-slate-300 mb-4" />
+                                <h2 className="text-xl font-bold mb-2">等待添加图片</h2>
+                                <p className="text-slate-500 text-sm mb-6 text-center">直接拖拽文件到窗口内、Ctrl+V 粘贴<br/>或点击右上角按钮添加</p>
+                                <div className="flex gap-4">
+                                    <span className="text-xs text-slate-400">本地处理</span>
+                                    <span className="text-xs text-slate-400">隐私安全</span>
+                                    <span className="text-xs text-slate-400">无上传</span>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="bg-white p-4 rounded-xl border flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
+                                    <div className="flex items-center gap-4">
+                                        <div className="text-sm">待压缩: <span className="font-bold text-orange-500">{queuedCount}</span></div>
+                                        <div className="text-sm">已完成: <span className="font-bold text-blue-600">{doneCount}</span></div>
+                                    </div>
+                                    
+                                    <div className="flex gap-2 w-full md:w-auto">
+                                        <button 
+                                            onClick={handleStartCompression} 
+                                            disabled={queuedCount === 0 || isProcessing}
+                                            className="flex-1 md:flex-none bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-bold disabled:bg-slate-200 flex items-center justify-center gap-2 transition-all shadow-md active:scale-95"
+                                        >
+                                            {isProcessing ? (
+                                                <><Icon name="loader-2" size={16} className="animate-spin" /> 处理中...</>
+                                            ) : (
+                                                <><Icon name="play" size={16} /> 开始压缩</>
+                                            )}
+                                        </button>
+
+                                        <button 
+                                            onClick={downloadZip} 
+                                            disabled={doneCount === 0 || isZipping} 
+                                            className="flex-1 md:flex-none bg-slate-900 text-white px-6 py-2 rounded-lg text-sm font-bold disabled:bg-slate-200 flex items-center justify-center gap-2 transition-all shadow-md active:scale-95"
+                                        >
+                                            {isZipping ? "打包中..." : <><Icon name="file-archive" size={16} /> 打包下载</>}
+                                        </button>
+                                        <button onClick={() => setTasks([])} className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg text-sm">全部清空</button>
+                                    </div>
+                                </div>
+
+                                <div className="grid gap-2 mb-20">
+                                    {tasks.map(task => (
+                                        <div key={task.id} className="bg-white p-3 rounded-lg border flex items-center gap-4 hover:border-blue-200 transition-colors">
+                                            <div className="w-12 h-12 bg-slate-100 rounded overflow-hidden flex-shrink-0 relative">
+                                                {task.meta.previewUrl && <img src={task.meta.previewUrl} className="w-full h-full object-cover" />}
+                                                {task.status === 'compressing' && (
+                                                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                                                        <Icon name="loader-2" size={16} className="text-white animate-spin" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex-grow min-w-0">
+                                                <div className="text-sm font-medium truncate text-slate-800">{task.meta.name}</div>
+                                                <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+                                                    <span>{formatSize(task.meta.size)}</span>
+                                                    {task.status === 'done' && (
+                                                        <span className="text-green-600 font-bold flex items-center gap-1">
+                                                            <Icon name="arrow-right" size={10} /> {formatSize(task.result.outSize)} ({task.result.ratio}%)
+                                                        </span>
+                                                    )}
+                                                    {task.status === 'queued' && <span className="text-orange-400 font-medium">待处理</span>}
+                                                    {task.status === 'error' && <span className="text-red-500 font-medium">处理失败</span>}
+                                                </div>
+                                            </div>
+                                            <div className="flex-shrink-0 flex items-center gap-1">
+                                                {task.status === 'done' && (
+                                                    <button onClick={() => {
+                                                        const a = document.createElement('a');
+                                                        a.href = URL.createObjectURL(task.result.blob);
+                                                        a.download = task.result.outName;
+                                                        a.click();
+                                                    }} className="p-2 text-blue-600 hover:bg-blue-50 rounded flex items-center justify-center" title="下载">
+                                                        <Icon name="download" size={18} />
+                                                    </button>
+                                                )}
+                                                <button onClick={() => setTasks(tasks.filter(t => t.id !== task.id))} className="p-2 text-slate-300 hover:text-red-500 rounded flex items-center justify-center" title="移除">
+                                                    <Icon name="trash-2" size={18} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </main>
+                    <footer className="p-8 text-center text-slate-400 text-xs mt-auto">
+                        直接将 JPG 拖入此窗口任何位置即可开始
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

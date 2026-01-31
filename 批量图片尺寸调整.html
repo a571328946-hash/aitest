@@ -1,0 +1,980 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>批量图片尺寸调整工具</title>
+  <style>
+    :root {
+      /* 改为与其他工具一致的深蓝/灰白配色 */
+      --primary: #2563eb; 
+      --primary-hover: #1d4ed8;
+      --bg: #f8fafc;       /* 背景改为灰白 */
+      --surface: #ffffff;
+      --border: #e2e8f0;   /* 边框改为灰色 */
+      --text-main: #0f172a;
+      --text-sub: #64748b;
+      --radius: 12px;
+      --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; outline-color: var(--primary); }
+    
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text-main);
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .header h1 {
+      font-size: 26px;
+      font-weight: 800;
+      color: #0f172a; /* 标题颜色调整 */
+      margin: 0 0 8px;
+    }
+    .header p { color: var(--text-sub); font-size: 14px; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);
+      overflow: hidden;
+    }
+
+    /* 设置区块 */
+    .setting-block {
+      padding: 24px;
+      border-bottom: 1px solid #f1f5f9;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      transition: background 0.2s;
+    }
+    .setting-block:last-child { border-bottom: none; }
+    
+    /* 选中状态微调为极淡的蓝色 */
+    .setting-block.active {
+      background: #eff6ff; 
+    }
+    .setting-block.active .radio-circle {
+      border-color: var(--primary);
+      background: var(--primary);
+      box-shadow: 0 0 0 3px #dbeafe; /* 调整阴影颜色匹配 */
+    }
+
+    .radio-wrap {
+      padding-top: 4px;
+      cursor: pointer;
+    }
+    .radio-circle {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid #cbd5e1;
+      position: relative;
+      transition: all 0.2s;
+    }
+    .radio-circle::after {
+      content: "";
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 8px; height: 8px;
+      background: white;
+      border-radius: 50%;
+      opacity: 0;
+    }
+    .setting-block.active .radio-circle::after { opacity: 1; }
+
+    .block-content { flex: 1; }
+    .block-title {
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 12px;
+      font-size: 15px;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .control-row:last-child { margin-bottom: 0; }
+    
+    input[type="range"] {
+      flex: 1;
+      height: 6px;
+      background: #e2e8f0;
+      border-radius: 3px;
+      appearance: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 18px; height: 18px;
+      background: var(--primary);
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    .input-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      position: relative;
+    }
+    .text-input {
+      width: 110px;
+      padding: 8px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 14px;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .text-input:focus { border-color: var(--primary); outline: none; }
+    .text-input::placeholder { color: #94a3b8; font-size: 12px; }
+    .text-input:disabled { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; border-color: #e2e8f0; }
+    
+    /* Toggle Switch 样式 */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 36px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #cbd5e1;
+      transition: .4s;
+      border-radius: 34px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 2px;
+      bottom: 2px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: var(--primary);
+    }
+    input:checked + .slider:before {
+      transform: translateX(16px);
+    }
+    .toggle-label {
+      display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-main); cursor: pointer; user-select: none;
+    }
+    
+    select {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      background: white;
+      font-size: 14px;
+    }
+    select:disabled { background: #f1f5f9; color: #94a3b8; }
+
+    .hint { font-size: 12px; color: var(--text-sub); margin-top: 6px; }
+
+    /* 上传区域 */
+    .upload-section {
+      padding: 24px;
+      background: #fdfdfd;
+      border-top: 1px solid #f1f5f9;
+    }
+    .drop-box {
+      border: 2px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 32px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .drop-box:hover { border-color: var(--primary); background: #eff6ff; }
+    
+    .upload-icon {
+      width: 48px; height: 48px; color: #cbd5e1; margin: 0 auto 16px; display: block;
+    }
+
+    /* 简易文件列表 */
+    .file-list {
+      margin-top: 16px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+      background: white;
+      display: none;
+    }
+    .file-row {
+      padding: 8px 12px;
+      border-bottom: 1px solid #f1f5f9;
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      align-items: center;
+    }
+    .status-ok { color: #10b981; font-weight: 600; }
+    .status-err { color: #ef4444; }
+    .status-wait { color: var(--text-sub); }
+
+    /* 底部按钮 */
+    .action-bar {
+      margin-top: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .btn {
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--text-main); color: white; }
+    .btn-primary:hover:not(:disabled) { background: #0f172a; transform: translateY(-1px); }
+    .btn-outline { background: white; border: 1px solid #cbd5e1; color: var(--text-main); }
+    .btn-outline:hover:not(:disabled) { background: #f8fafc; border-color: #94a3b8; }
+    .btn-zip { background: var(--primary); color: white; }
+    .btn-zip:hover:not(:disabled) { background: var(--primary-hover); transform: translateY(-1px); }
+
+    /* 结果网格 */
+    .result-area {
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid #f1f5f9;
+      display: none;
+    }
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .result-card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      transition: transform 0.2s;
+    }
+    .result-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.08); }
+    .res-thumb {
+      aspect-ratio: 16/10;
+      background: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .res-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .res-info {
+      padding: 10px;
+    }
+    .res-name {
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+    .res-meta {
+      font-size: 11px;
+      color: var(--text-sub);
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .res-btn {
+      display: block;
+      width: 100%;
+      text-align: center;
+      background: #eff6ff; /* 按钮背景 */
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 0;
+      border-radius: 4px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .res-btn:hover { background: #dbeafe; }
+    
+    /* 比例标签 */
+    .ratio-tag {
+      font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #f1f5f9; color: #64748b; margin-left: 8px;
+    }
+    .ratio-tag.diff { background: #fff1f2; color: #e11d48; }
+    .ratio-tag.same { background: #f0fdf4; color: #166534; }
+
+    /* 拖拽全屏覆盖 */
+    .drag-cover {
+      position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      border: 8px dashed var(--primary); color: var(--primary); font-size: 24px; font-weight: 700;
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .dragging .drag-cover { opacity: 1; pointer-events: auto; }
+  </style>
+</head>
+<body id="body">
+
+<div class="drag-cover">
+  <svg width="80" height="80" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-bottom:20px"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+  松开鼠标添加文件
+</div>
+
+<div class="container">
+  <div class="header">
+    <h1>批量图片尺寸调整</h1>
+    <p>本地处理 | 高清缩放 | 批量下载</p>
+  </div>
+
+  <div class="card">
+    
+    <!-- 1. 按比例缩放 -->
+    <div class="setting-block active" id="block-percent">
+      <div class="radio-wrap" id="radio-percent">
+        <div class="radio-circle"></div>
+      </div>
+      <div class="block-content">
+        <div class="block-title">方式一：按比例缩放</div>
+        <div class="control-row">
+          <input type="range" id="inPercent" min="1" max="400" value="50">
+          <span style="font-weight:600; color:var(--primary); width: 45px; text-align:right;" id="txtPercent">50%</span>
+        </div>
+        <div class="hint">保持原图宽高比，仅改变分辨率（最大支持 400% 放大）。</div>
+      </div>
+    </div>
+
+    <!-- 2. 指定尺寸 (整合了单位) -->
+    <div class="setting-block" id="block-custom">
+      <div class="radio-wrap" id="radio-custom">
+        <div class="radio-circle"></div>
+      </div>
+      <div class="block-content">
+        <div class="block-title">方式二：指定宽高尺寸</div>
+        
+        <!-- 尺寸输入 -->
+        <div class="control-row">
+          <div class="input-group">
+            <span style="font-size:13px; color:var(--text-sub)">宽</span>
+            <input type="number" id="inW" class="text-input" placeholder="自动">
+          </div>
+          
+          <!-- 静态乘号 -->
+          <span style="color:#cbd5e1; font-size:20px; line-height:1; user-select:none;">×</span>
+
+          <div class="input-group">
+            <span style="font-size:13px; color:var(--text-sub)">高</span>
+            <input type="number" id="inH" class="text-input" placeholder="自动">
+          </div>
+          
+          <select id="unitSelect" style="width:80px">
+            <option value="px" selected>像素</option>
+            <option value="mm">毫米</option>
+            <option value="inch">英寸</option>
+          </select>
+        </div>
+
+        <!-- 锁定比例开关与 DPI -->
+        <div class="control-row" style="margin-top:16px;">
+          
+          <label class="toggle-label">
+            <div class="switch">
+              <input type="checkbox" id="checkRatio" checked>
+              <span class="slider"></span>
+            </div>
+            锁定长宽比例
+          </label>
+
+          <div class="input-group" id="dpiGroup" style="display:none; margin-left:16px; border-left:1px solid #e2e8f0; padding-left:16px;">
+            <span style="font-size:13px; color:var(--text-sub)">分辨率</span>
+            <input type="number" id="inDpi" class="text-input" value="300" style="width:70px">
+            <span style="font-size:13px; color:var(--text-sub)">DPI</span>
+          </div>
+        </div>
+
+        <div class="hint" id="customHint">当前：锁定比例。输入一项，另一项将严格按比例自动计算。</div>
+      </div>
+    </div>
+
+    <!-- 4. 上传与操作 -->
+    <div class="upload-section">
+      <div class="drop-box" id="dropZone">
+        <!-- 新增图标 -->
+        <svg class="upload-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+        <button class="btn btn-primary" style="background:var(--primary)" id="btnSelect">选择图片</button>
+        <div style="font-size:12px; color:var(--text-sub); margin-top:8px;">或拖拽图片到这里，也可以直接粘贴 (Ctrl+V)</div>
+        <input type="file" id="fileIn" multiple accept="image/*" style="display:none">
+      </div>
+
+      <!-- 处理状态列表 -->
+      <div class="file-list" id="fileList"></div>
+
+      <!-- 操作按钮栏 -->
+      <div class="action-bar">
+        <span style="font-size:13px; color:var(--text-sub)">已选 <b id="count">0</b> 张 <span id="ratioInfo"></span></span>
+        <div style="display:flex; gap:10px;">
+          <button class="btn btn-outline" id="btnClear">清空</button>
+          <button class="btn btn-primary" id="btnRun" disabled>开始处理</button>
+          <button class="btn btn-zip" id="btnZip" disabled>打包下载 ZIP</button>
+        </div>
+      </div>
+      
+      <!-- 结果预览区 -->
+      <div class="result-area" id="resultArea">
+        <h3 style="font-size:15px; margin:0 0 16px; color:#334155; display:flex; justify-content:space-between;">
+          处理结果预览
+          <span style="font-size:12px; font-weight:400; color:var(--text-sub)">点击下方按钮下载单张</span>
+        </h3>
+        <div class="result-grid" id="outGrid"></div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+
+<script>
+  // Elements
+  const els = {
+    blockPercent: document.getElementById('block-percent'),
+    blockCustom: document.getElementById('block-custom'),
+    radioPercent: document.getElementById('radio-percent'),
+    radioCustom: document.getElementById('radio-custom'),
+    
+    inPercent: document.getElementById('inPercent'),
+    txtPercent: document.getElementById('txtPercent'),
+    
+    inW: document.getElementById('inW'),
+    inH: document.getElementById('inH'),
+    checkRatio: document.getElementById('checkRatio'),
+    customHint: document.getElementById('customHint'),
+    
+    unitSelect: document.getElementById('unitSelect'),
+    dpiGroup: document.getElementById('dpiGroup'),
+    inDpi: document.getElementById('inDpi'),
+    
+    dropZone: document.getElementById('dropZone'),
+    fileIn: document.getElementById('fileIn'),
+    btnSelect: document.getElementById('btnSelect'),
+    fileList: document.getElementById('fileList'),
+    count: document.getElementById('count'),
+    ratioInfo: document.getElementById('ratioInfo'),
+    btnRun: document.getElementById('btnRun'),
+    btnZip: document.getElementById('btnZip'),
+    btnClear: document.getElementById('btnClear'),
+    
+    resultArea: document.getElementById('resultArea'),
+    outGrid: document.getElementById('outGrid')
+  };
+
+  // State
+  let mode = 'percent'; 
+  let filesQueue = []; 
+  // 缓存当前文件列表的统一长宽比，如果不同则为 null
+  let commonRatio = null; 
+
+  // --- 交互逻辑 ---
+
+  function switchMode(newMode) {
+    mode = newMode;
+    if (mode === 'percent') {
+      els.blockPercent.classList.add('active');
+      els.blockCustom.classList.remove('active');
+      
+      els.inW.disabled = true;
+      els.inH.disabled = true;
+      els.unitSelect.disabled = true;
+      els.inDpi.disabled = true;
+      els.inPercent.disabled = false;
+      els.checkRatio.disabled = true;
+    } else {
+      els.blockCustom.classList.add('active');
+      els.blockPercent.classList.remove('active');
+      
+      els.unitSelect.disabled = false;
+      els.inDpi.disabled = false;
+      els.inPercent.disabled = true;
+      els.checkRatio.disabled = false;
+      
+      // 这里需要立即触发一次 sync 逻辑，决定是否禁用输入框
+      syncInputs();
+    }
+  }
+
+  els.radioPercent.addEventListener('click', () => switchMode('percent'));
+  els.blockPercent.addEventListener('click', (e) => { 
+    if(e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT') switchMode('percent'); 
+  });
+  
+  els.radioCustom.addEventListener('click', () => switchMode('custom'));
+  els.blockCustom.addEventListener('click', (e) => { 
+    if(e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT' && !e.target.closest('.switch')) switchMode('custom'); 
+  });
+
+  // 监听复选框变化
+  els.checkRatio.addEventListener('change', () => {
+    updateLinkUI();
+    syncInputs();
+  });
+
+  function updateLinkUI() {
+    if (els.checkRatio.checked) {
+      els.customHint.textContent = "当前：锁定比例。输入一项，另一项将严格按比例自动计算（防拉伸）。";
+    } else {
+      els.customHint.textContent = "当前：自由比例。请分别输入宽度和高度，图片将被强制拉伸至该尺寸。";
+    }
+  }
+
+  // --- 核心同步逻辑 (强力联动) ---
+  
+  function syncInputs() {
+    // 1. 如果是非自定义模式，不处理
+    if (mode !== 'custom') return;
+
+    // 2. 如果未锁定比例，完全自由
+    if (!els.checkRatio.checked) {
+      els.inW.disabled = false;
+      els.inH.disabled = false;
+      return;
+    }
+
+    // 3. 锁定比例模式下
+    if (commonRatio === null) {
+      // 3a. 比例不一致 (Mixed) 或 无图片
+      // 如果无图片，开放输入，暂不计算
+      if (filesQueue.length === 0) {
+        els.inW.disabled = false;
+        els.inH.disabled = false;
+        return;
+      }
+      
+      // 如果有图片但比例不一致
+      // 策略：当你在一个框输入时，另一个框变灰且显示“自动”
+      if (els.inW.value && !els.inH.value) {
+        els.inH.disabled = true;
+        els.inH.placeholder = "自动(各异)";
+      } else if (els.inH.value && !els.inW.value) {
+        els.inW.disabled = true;
+        els.inW.placeholder = "自动(各异)";
+      } else {
+        // 都没值，两个都启用
+        els.inW.disabled = false;
+        els.inH.disabled = false;
+      }
+    } else {
+      // 3b. 比例一致 (Consistent) -> 强力计算
+      // 确保两个都启用，然后计算数值
+      els.inW.disabled = false;
+      els.inH.disabled = false;
+      
+      // 这里不直接赋值，而是在 input 事件里做
+    }
+  }
+
+  // 监听输入，实时计算
+  els.inW.addEventListener('input', () => {
+    if (els.checkRatio.checked && commonRatio !== null && els.inW.value) {
+      const w = parseFloat(els.inW.value);
+      const h = Math.round(w / commonRatio);
+      els.inH.value = h;
+    } else {
+      // 如果清空了，或者比例不一致，触发 UI 状态更新
+      if(!els.inW.value && els.checkRatio.checked) els.inH.value = "";
+      syncInputs();
+    }
+  });
+
+  els.inH.addEventListener('input', () => {
+    if (els.checkRatio.checked && commonRatio !== null && els.inH.value) {
+      const h = parseFloat(els.inH.value);
+      const w = Math.round(h * commonRatio);
+      els.inW.value = w;
+    } else {
+      if(!els.inH.value && els.checkRatio.checked) els.inW.value = "";
+      syncInputs();
+    }
+  });
+
+  // --- 其他 UI 事件 ---
+
+  els.inPercent.addEventListener('input', (e) => {
+    els.txtPercent.textContent = e.target.value + '%';
+  });
+
+  els.unitSelect.addEventListener('change', (e) => {
+    const unit = e.target.value;
+    els.dpiGroup.style.display = (unit === 'mm' || unit === 'inch') ? 'flex' : 'none';
+  });
+
+  els.btnSelect.addEventListener('click', () => els.fileIn.click());
+  els.fileIn.addEventListener('change', (e) => addFiles(e.target.files));
+  
+  // Drag & Drop
+  // Use specific dropzone event listeners now that it's not global
+  // Removed global event listeners as requested (except drag-cover which is global)
+  
+  // 全屏拖拽支持
+  const body = document.body;
+  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+    body.addEventListener(evt, e => {
+      e.preventDefault(); e.stopPropagation();
+    });
+  });
+  
+  body.addEventListener('dragenter', () => body.classList.add('dragging'));
+  
+  body.addEventListener('dragleave', (e) => {
+    // 只有当鼠标真正离开窗口时才移除样式
+    if (e.clientX === 0 && e.clientY === 0) {
+      body.classList.remove('dragging');
+    }
+  });
+  
+  body.addEventListener('drop', (e) => {
+    body.classList.remove('dragging');
+    addFiles(e.dataTransfer.files);
+  });
+
+  // Paste support
+  document.addEventListener('paste', (e) => {
+    const items = e.clipboardData.items;
+    const files = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        files.push(items[i].getAsFile());
+      }
+    }
+    if (files.length > 0) {
+      addFiles(files);
+    }
+  });
+
+  // 获取图片的元数据
+  function getImageInfo(file) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve({
+          w: img.naturalWidth,
+          h: img.naturalHeight,
+          ratio: img.naturalWidth / img.naturalHeight
+        });
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(null);
+      };
+      img.src = url;
+    });
+  }
+
+  async function addFiles(fileList) {
+    const arr = Array.from(fileList || []).filter(f => f.type.startsWith('image/'));
+    if (!arr.length) return;
+    
+    els.btnSelect.textContent = "读取中...";
+    els.btnSelect.disabled = true;
+
+    const tasks = arr.map(async f => {
+       const info = await getImageInfo(f);
+       return { file: f, status: 'ready', ...info };
+    });
+
+    const newItems = await Promise.all(tasks);
+
+    newItems.forEach(item => {
+      if (!filesQueue.find(q => q.file.name === item.file.name && q.file.size === item.file.size)) {
+        filesQueue.push(item);
+      }
+    });
+
+    els.btnSelect.textContent = "选择图片";
+    els.btnSelect.disabled = false;
+
+    updateQueueState(); 
+    els.fileIn.value = '';
+  }
+
+  els.btnClear.addEventListener('click', () => {
+    filesQueue.forEach(item => {
+      if(item.url) URL.revokeObjectURL(item.url);
+    });
+    filesQueue = [];
+    els.resultArea.style.display = 'none';
+    els.outGrid.innerHTML = '';
+    updateQueueState();
+  });
+
+  // 更新队列状态：计算 commonRatio，更新 UI
+  function updateQueueState() {
+    // 1. 更新计数
+    els.count.textContent = filesQueue.length;
+    els.btnRun.disabled = filesQueue.length === 0;
+    
+    const anyDone = filesQueue.some(item => item.status === 'done');
+    els.btnZip.disabled = !anyDone;
+
+    // 2. 渲染列表
+    if (filesQueue.length === 0) {
+      els.fileList.style.display = 'none';
+      commonRatio = null;
+      els.ratioInfo.innerHTML = "";
+    } else {
+      els.fileList.style.display = 'block';
+      els.fileList.innerHTML = filesQueue.map((item, i) => `
+        <div class="file-row">
+          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:60%;">
+            ${i+1}. ${item.file.name}
+          </span>
+          <span class="${item.status==='done'?'status-ok':(item.status==='error'?'status-err':'status-wait')}">
+            ${item.status === 'ready' ? '等待' : (item.status === 'done' ? `完成 <span style="font-size:11px;color:#64748b">(${item.w}x${item.h} → ${item.dims})</span>` : (item.status==='processing'?'处理中...':'失败'))} 
+          </span>
+        </div>
+      `).join('');
+
+      // 3. 计算长宽比一致性
+      const validFiles = filesQueue.filter(f => f.ratio);
+      if (validFiles.length > 0) {
+        const firstRatio = validFiles[0].ratio;
+        const allSame = validFiles.every(f => Math.abs(f.ratio - firstRatio) < 0.01);
+        
+        if (allSame) {
+          commonRatio = firstRatio;
+          els.ratioInfo.innerHTML = `<span class="ratio-tag same">比例一致 ≈ ${firstRatio.toFixed(2)}</span>`;
+        } else {
+          commonRatio = null;
+          els.ratioInfo.innerHTML = `<span class="ratio-tag diff">比例不一</span>`;
+        }
+      } else {
+        commonRatio = null;
+      }
+    }
+    
+    // 4. 重新触发输入框逻辑
+    syncInputs();
+  }
+
+  function renderResults() {
+    const doneItems = filesQueue.filter(item => item.status === 'done');
+    if(doneItems.length === 0) return;
+
+    els.resultArea.style.display = 'block';
+    const displayItems = [...doneItems].reverse();
+
+    els.outGrid.innerHTML = displayItems.map(item => `
+      <div class="result-card">
+        <div class="res-thumb">
+          <img src="${item.url}" alt="${item.file.name}">
+        </div>
+        <div class="res-info">
+          <div class="res-name" title="${item.file.name}">${item.file.name}</div>
+          <div class="res-meta">
+            <span>${item.dims}</span>
+            <span>${(item.blob.size/1024).toFixed(1)}KB</span>
+          </div>
+          <a class="res-btn" href="${item.url}" download="${item.file.name}">下载</a>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // --- 处理逻辑 ---
+  const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
+  els.btnRun.addEventListener('click', async () => {
+    if (filesQueue.length === 0) return;
+    
+    els.btnRun.disabled = true;
+    els.resultArea.style.display = 'none';
+    
+    // 准备参数
+    const params = {
+      mode: mode,
+      percent: parseInt(els.inPercent.value),
+      w: els.inW.value ? parseFloat(els.inW.value) : null,
+      h: els.inH.value ? parseFloat(els.inH.value) : null,
+      ratioLocked: els.checkRatio.checked,
+      unit: els.unitSelect.value,
+      dpi: parseInt(els.inDpi.value) || 300,
+      commonRatio: commonRatio // 传递给处理函数
+    };
+
+    const total = filesQueue.length;
+
+    for (let i = 0; i < total; i++) {
+      const item = filesQueue[i];
+      item.status = 'processing';
+      els.btnRun.textContent = `处理中 ${i+1}/${total}`;
+      updateQueueState(); // 更新列表状态文字
+      await wait(20);
+
+      try {
+        if(item.url) URL.revokeObjectURL(item.url);
+        const res = await processImage(item.file, params, item.ratio);
+        item.status = 'done';
+        item.dims = `${res.w}x${res.h}`;
+        item.blob = res.blob;
+        item.url = URL.createObjectURL(res.blob);
+      } catch (e) {
+        console.error(e);
+        item.status = 'error';
+      }
+    }
+
+    updateQueueState();
+    renderResults();
+
+    els.btnRun.textContent = '开始处理';
+    els.btnRun.disabled = false;
+  });
+
+  els.btnZip.addEventListener('click', async () => {
+    const doneItems = filesQueue.filter(item => item.status === 'done');
+    if(doneItems.length === 0) return;
+
+    els.btnZip.disabled = true;
+    els.btnZip.textContent = '打包中...';
+    await wait(50); 
+
+    const zip = new JSZip();
+    const folder = zip.folder("resized_images");
+    
+    doneItems.forEach(item => {
+      folder.file(item.file.name, item.blob);
+    });
+
+    const content = await zip.generateAsync({type:"blob"});
+    saveAs(content, "images_resized.zip");
+
+    els.btnZip.textContent = '打包下载 ZIP';
+    els.btnZip.disabled = false;
+  });
+
+  function processImage(file, params, imgRatio) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        
+        let targetW = img.naturalWidth;
+        let targetH = img.naturalHeight;
+        
+        if (params.mode === 'percent') {
+          const ratio = params.percent / 100;
+          targetW = Math.round(targetW * ratio);
+          targetH = Math.round(targetH * ratio);
+        } else {
+          // 自定义模式
+          let reqW_px = null;
+          let reqH_px = null;
+          
+          const toPx = (val) => {
+            if (params.unit === 'px') return val;
+            if (params.unit === 'mm') return (val / 25.4) * params.dpi;
+            if (params.unit === 'inch') return val * params.dpi;
+            return val;
+          };
+
+          if (params.w) reqW_px = toPx(params.w);
+          if (params.h) reqH_px = toPx(params.h);
+
+          // 核心计算逻辑
+          if (params.ratioLocked) {
+            // 锁定比例
+            if (reqW_px && reqH_px) {
+               // 理论上 UI 应该阻止这种情况，但防止万一，这里取其一
+               // 这里我们以 W 为主 (符合多数人习惯)
+               targetW = reqW_px;
+               targetH = Math.round(reqW_px / imgRatio);
+            } else if (reqW_px) {
+               targetW = reqW_px;
+               targetH = Math.round(reqW_px / imgRatio);
+            } else if (reqH_px) {
+               targetH = reqH_px;
+               targetW = Math.round(reqH_px * imgRatio);
+            }
+          } else {
+            // 不锁定，强制拉伸
+            if (reqW_px) targetW = reqW_px;
+            if (reqH_px) targetH = reqH_px;
+          }
+          
+          targetW = Math.round(targetW);
+          targetH = Math.round(targetH);
+        }
+
+        targetW = Math.max(1, targetW);
+        targetH = Math.max(1, targetH);
+
+        const cvs = document.createElement('canvas');
+        cvs.width = targetW;
+        cvs.height = targetH;
+        const ctx = cvs.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+        
+        const mime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+        cvs.toBlob(blob => {
+          if(blob) resolve({ blob, w: targetW, h: targetH });
+          else reject('canvas error');
+        }, mime, 0.92);
+      };
+      
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject("Image load failed");
+      };
+      img.src = url;
+    });
+  }
+
+  // 初始化
+  switchMode('percent');
+  updateLinkUI();
+</script>
+</body>
+</html>
