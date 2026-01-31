@@ -54,8 +54,10 @@
             const [isProcessing, setIsProcessing] = useState(false);
             const [isZipping, setIsZipping] = useState(false);
             const [isDragging, setIsDragging] = useState(false); // 全屏拖拽状态
+            const [toast, setToast] = useState(null);
             const fileInputRef = useRef(null);
             const dragCounter = useRef(0); // 处理拖拽进入子元素触发 leave 的问题
+            const toastTimer = useRef(null);
 
             const formatSize = (bytes) => {
                 if (bytes === 0) return '0 B';
@@ -66,6 +68,14 @@
             };
 
             const generateId = () => Math.random().toString(36).substring(2, 11);
+
+            const showToast = (message, type = 'info') => {
+                setToast({ message, type });
+                if (toastTimer.current) {
+                    clearTimeout(toastTimer.current);
+                }
+                toastTimer.current = setTimeout(() => setToast(null), 2200);
+            };
 
             const createTasks = (fileList) => {
                 const newTasks = [];
@@ -99,20 +109,33 @@
                 const canvas = document.createElement('canvas');
                 canvas.width = bitmap.width;
                 canvas.height = bitmap.height;
-                const ctx = canvas.getContext('2d');
+                const ctx = canvas.getContext('2d', { alpha: false });
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
                 ctx.drawImage(bitmap, 0, 0);
-                return new Promise((resolve) => {
+                const encodeWithQuality = (targetQuality) => new Promise((resolve, reject) => {
                     canvas.toBlob((blob) => {
-                        bitmap.close();
-                        const outName = task.meta.name.replace(/\.(jpe?g)$/i, '') + `_q${Math.round(task.quality * 100)}.jpg`;
-                        resolve({
-                            blob,
-                            outName,
-                            outSize: blob.size,
-                            ratio: ((1 - blob.size / task.meta.size) * 100).toFixed(1)
-                        });
-                    }, 'image/jpeg', task.quality);
+                        if (!blob) {
+                            reject(new Error('图片编码失败'));
+                            return;
+                        }
+                        resolve(blob);
+                    }, 'image/jpeg', targetQuality);
                 });
+                let currentQuality = task.quality;
+                let blob = await encodeWithQuality(currentQuality);
+                while (blob.size >= task.meta.size && currentQuality > 0.4) {
+                    currentQuality = Math.max(0.4, currentQuality - 0.08);
+                    blob = await encodeWithQuality(currentQuality);
+                }
+                bitmap.close();
+                const outName = task.meta.name.replace(/\.(jpe?g)$/i, '') + `_q${Math.round(currentQuality * 100)}.jpg`;
+                return {
+                    blob,
+                    outName,
+                    outSize: blob.size,
+                    ratio: ((1 - blob.size / task.meta.size) * 100).toFixed(1)
+                };
             };
 
             const handleStartCompression = async () => {
@@ -193,6 +216,43 @@
                 setIsZipping(false);
             };
 
+            const copyToClipboard = async (blob) => {
+                if (!navigator.clipboard || !window.ClipboardItem) {
+                    showToast('浏览器不支持复制图片', 'error');
+                    return false;
+                }
+                try {
+                    await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+                    return true;
+                } catch (error) {
+                    showToast('复制失败，请重试', 'error');
+                    return false;
+                }
+            };
+
+            const handleCopyAll = async () => {
+                const doneTasks = tasks.filter(t => t.status === 'done');
+                if (doneTasks.length === 0) return;
+                if (isZipping) return;
+                setIsZipping(true);
+                const zip = new JSZip();
+                const folder = zip.folder("compressed_images");
+                doneTasks.forEach(t => {
+                    folder.file(t.result.outName, t.result.blob);
+                });
+                try {
+                    const content = await zip.generateAsync({ type: "blob" });
+                    const copied = await copyToClipboard(content);
+                    if (copied) {
+                        showToast('已复制全部压缩文件');
+                    }
+                } catch (error) {
+                    showToast('复制全部失败，请尝试下载', 'error');
+                } finally {
+                    setIsZipping(false);
+                }
+            };
+
             const queuedCount = tasks.filter(t => t.status === 'queued').length;
             const doneCount = tasks.filter(t => t.status === 'done').length;
 
@@ -240,6 +300,11 @@
 
                     <main className="flex-grow max-w-5xl mx-auto w-full p-6">
                         <input type="file" ref={fileInputRef} className="hidden" multiple accept="image/jpeg" onChange={e => createTasks(e.target.files)} />
+                        {toast && (
+                            <div className={`mb-4 rounded-lg px-4 py-2 text-sm font-medium border ${toast.type === 'error' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
+                                {toast.message}
+                            </div>
+                        )}
                         
                         {tasks.length === 0 ? (
                             <div className="mt-10 border-2 border-dashed border-slate-300 rounded-2xl p-20 flex flex-col items-center justify-center bg-white">
@@ -280,6 +345,13 @@
                                         >
                                             {isZipping ? "打包中..." : <><Icon name="file-archive" size={16} /> 打包下载</>}
                                         </button>
+                                        <button 
+                                            onClick={handleCopyAll} 
+                                            disabled={doneCount === 0 || isZipping} 
+                                            className="flex-1 md:flex-none bg-white border border-slate-200 text-slate-700 px-6 py-2 rounded-lg text-sm font-bold disabled:bg-slate-100 flex items-center justify-center gap-2 transition-all shadow-sm active:scale-95"
+                                        >
+                                            <Icon name="copy" size={16} /> 复制全部
+                                        </button>
                                         <button onClick={() => setTasks([])} className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg text-sm">全部清空</button>
                                     </div>
                                 </div>
@@ -309,6 +381,16 @@
                                                 </div>
                                             </div>
                                             <div className="flex-shrink-0 flex items-center gap-1">
+                                                {task.status === 'done' && (
+                                                    <button onClick={async () => {
+                                                        const copied = await copyToClipboard(task.result.blob);
+                                                        if (copied) {
+                                                            showToast('已复制该图片');
+                                                        }
+                                                    }} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded flex items-center justify-center" title="复制图片">
+                                                        <Icon name="copy" size={18} />
+                                                    </button>
+                                                )}
                                                 {task.status === 'done' && (
                                                     <button onClick={() => {
                                                         const a = document.createElement('a');
